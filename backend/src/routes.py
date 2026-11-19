@@ -6,7 +6,7 @@ from .models import *
 from .schemas import *
 from .auth import current,editor,supervisor,issue,password_hash
 from .common import dump,get
-from . import navigation_service as nav,transect_service as transect,school_service as school,biology_service as biology,resurvey_service as resurvey,release_service as release
+from . import navigation_service as nav,transect_service as transect,school_service as school,biology_service as biology,resurvey_service as resurvey,release_service as release,evaluation_service as evaluation
 router=APIRouter()
 @router.post('/auth/login')
 def login(data:Login,db=Depends(session)):
@@ -15,7 +15,7 @@ def login(data:Login,db=Depends(session)):
     return {'token':issue(row),'username':row.username,'role':row.role}
 @router.get('/workspace')
 def workspace(db=Depends(session),user=Depends(current)):
-    return {m.__tablename__:[dump(r) for r in db.scalars(select(m).order_by(m.id))] for m in [Boat,Cruise,NavigationClosure,Transect,Echo,SchoolAnalysis,SchoolReview,Net,NetCalibration,BioSample,MissingInterval,Resurvey,SurveyRelease]}
+    return {m.__tablename__:[dump(r) for r in db.scalars(select(m).order_by(m.id))] for m in [Boat,Cruise,NavigationClosure,Transect,Echo,SchoolAnalysis,SchoolReview,BlockEvaluation,Net,NetCalibration,BioSample,MissingInterval,Resurvey,SurveyRelease]}
 @router.post('/cruises')
 def create(data:CruiseInput,db=Depends(session),user=Depends(editor)):return nav.create(db,data,user)
 @router.patch('/cruises/{id}/schedule')
@@ -36,6 +36,13 @@ def simulate(id:int,db=Depends(session),user=Depends(editor)):return transect.si
 def analyze(data:AnalysisInput,db=Depends(session),user=Depends(editor)):return school.enqueue(db,data,user)
 @router.post('/schools/{id}/review')
 def review(id:int,data:ReviewInput,db=Depends(session),user=Depends(supervisor)):return school.review(db,id,data,user)
+@router.post('/evaluations')
+def evaluate(data:BlockEvaluationInput,db=Depends(session),user=Depends(editor)):return evaluation.create(db,data.analysis_id,user)
+@router.post('/evaluations/{id}/resume')
+def resume_evaluation(id:int,db=Depends(session),user=Depends(editor)):return evaluation.resume(db,id,user)
+@router.get('/evaluations/{id}')
+def evaluation_detail(id:int,db=Depends(session),user=Depends(current)):
+    return evaluation.detail(db,get(db,BlockEvaluation,id))
 @router.post('/calibrations')
 def calibration(data:CalibrationInput,db=Depends(session),user=Depends(supervisor)):return biology.calibrate(db,data,user)
 @router.post('/samples')

@@ -2,7 +2,7 @@ from datetime import datetime,timezone,date
 from sqlalchemy import String,Integer,Float,ForeignKey,UniqueConstraint,CheckConstraint,DateTime,Date,JSON,Boolean,Text
 from sqlalchemy.orm import Mapped,mapped_column
 from .database import Base
-from .constants import CruiseState,AnalysisState
+from .constants import CruiseState,AnalysisState,EvaluationState
 def now():return datetime.now(timezone.utc)
 class User(Base):
     __tablename__='users'
@@ -81,6 +81,35 @@ class SchoolReview(Base):
     analysis_id:Mapped[int]=mapped_column(ForeignKey('school_analyses.id'),unique=True)
     noise_note:Mapped[str]=mapped_column(String(240))
     decision:Mapped[str]=mapped_column(String(120))
+class BlockEvaluation(Base):
+    __tablename__='block_evaluations'
+    __table_args__=(UniqueConstraint('analysis_id'),)
+    id:Mapped[int]=mapped_column(primary_key=True)
+    analysis_id:Mapped[int]=mapped_column(ForeignKey('school_analyses.id'))
+    transect_id:Mapped[int]=mapped_column(ForeignKey('transects.id'))
+    data_version:Mapped[int]=mapped_column(Integer)
+    eps:Mapped[float]=mapped_column(Float)
+    min_samples:Mapped[int]=mapped_column(Integer)
+    block_m:Mapped[float]=mapped_column(Float,default=100)
+    source_sha256:Mapped[str]=mapped_column(String(64),default='')
+    source_review_id:Mapped[int|None]=mapped_column(ForeignKey('school_reviews.id'),nullable=True)
+    status:Mapped[str]=mapped_column(String(20),default=EvaluationState.queued.value)
+    total_blocks:Mapped[int]=mapped_column(Integer,default=0)
+    round:Mapped[int]=mapped_column(Integer,default=1)
+    results:Mapped[list]=mapped_column(JSON,default=list)
+    summary:Mapped[dict]=mapped_column(JSON,default=dict)
+    error:Mapped[str]=mapped_column(String(240),default='')
+class BlockEvaluationLog(Base):
+    __tablename__='block_evaluation_logs'
+    __table_args__=(UniqueConstraint('evaluation_id','round','block_index'),)
+    id:Mapped[int]=mapped_column(primary_key=True)
+    evaluation_id:Mapped[int]=mapped_column(ForeignKey('block_evaluations.id'))
+    round:Mapped[int]=mapped_column(Integer)
+    block_index:Mapped[int]=mapped_column(Integer)
+    block_start_m:Mapped[float]=mapped_column(Float)
+    block_end_m:Mapped[float]=mapped_column(Float)
+    result:Mapped[dict]=mapped_column(JSON,default=dict)
+    at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
 class Net(Base):
     __tablename__='nets'
     id:Mapped[int]=mapped_column(primary_key=True)

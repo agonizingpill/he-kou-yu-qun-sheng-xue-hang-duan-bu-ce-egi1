@@ -47,6 +47,8 @@ class AnalysisInput(BaseModel):
 class ReviewInput(BaseModel):
     noise_note:str=Field(min_length=1,max_length=240)
     decision:str=Field(min_length=4,max_length=120)
+class BlockEvaluationInput(BaseModel):
+    analysis_id:int
 class CalibrationInput(BaseModel):
     net_id:int
     measured_mm:float=Field(gt=0,le=100)

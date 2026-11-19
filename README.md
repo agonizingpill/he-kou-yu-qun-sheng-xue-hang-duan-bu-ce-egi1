@@ -8,10 +8,10 @@
 
 1. 航次与禁航：具名调查船、带时区航窗、潮汐禁航。开航重新检查冲突；同船同期只能一航次；未开航可改时间恢复。
 2. 声学航段与探头：地理端点、米制长度、38/120/200kHz探头、增益；回波点含沿程距离、经纬度、水深和强度，范围与偏航100米约束。
-3. 群落与噪点：worker实际DBSCAN，复核针对当前回波版本与最新识别ID；有噪点必须解释。同版本重跑识别后，旧复核不会继续放行。
+3. 群落与噪点：worker实际DBSCAN，复核针对当前回波版本与最新识别ID；有噪点必须解释。同版本重跑识别后，旧复核不会继续放行。已复核的最新识别可按每100米划块做“百米留一”评估：轮流移除一块，用原eps/min_samples重算；只凭仍保留的共同回波（echo_id）追踪原群，逐块逐群记录原群保留、拆成多群、变噪点、无共同回波可比。中断后可续算余下块，已算块不重复计入并保留每轮日志；补录回波或换正式识别使旧评估过期，需重跑。各块算齐的逐群结果随图层快照封存。
 4. 网具与生物样：标称网目、实测尺度、证书和有效期；误差≤10%合格，最新校验须覆盖上海时区完整返航日期。样本引用已复核分析和实际校验记录，不可关联噪点。
 5. 缺测补航：原航段沿程区间不得重叠，主管按区间自动推导补航地理端点；补航回波、噪点复核和生物样齐全后才能接续。空补航可撤销重排。
-6. 图层封存：缺测全部覆盖后结束现场；逐航段最新分析、噪点复核和对应样本齐全后冻结。JSON快照包含回波、聚类、复核、样本、网具与校验，附原始canonical_json及其UTF-8字节SHA256；航次冻结后拒绝业务变更。
+6. 图层封存：缺测全部覆盖后结束现场；逐航段最新分析、噪点复核、对应样本以及算齐且未过期的百米留一评估齐全后冻结。JSON快照包含回波、聚类、复核、分块评估逐块逐群结果、样本、网具与校验，附原始canonical_json及其UTF-8字节SHA256；航次冻结后拒绝业务变更。
 
 ## 启动和账户
 
@@ -53,13 +53,16 @@ JWT有效8小时，角色按服务端当前账户核验。演示凭据仅用于�
 
 worker从Redis队列领取任务，保存assignments、metrics、失败原因，并写共享artifacts卷。回波版本变化使在途旧版本任务失败或无法复核；队列发送失败标failed返回503，可恢复后重新提交。页面展示真实点绘成的航迹和深度剖面，不用假图。
 
+百米留一评估把航段按 `ceil(length_m/100)` 划块，逐块从回波集合移除（按 `along_m//100`，最后一统计到实际航段长度），用**原识别的 eps/min_samples** 对剩余点重新 DBSCAN，再以 echo_id 为共同回波把原群逐点映射到新标签：剩余可比点全归一个新群记“保留”，归入多个新群记“拆成多群”，全部落为-1记“变噪点”，该原群没有剩余可比点记“无共同回波可比”。结果逐块逐群存入 `results` 与按轮次留痕的 `block_evaluation_logs`；汇总按原群统计敏感块比例。评估每算完一块提交一次，重启或中断后从已算块继续，同一轮已记录的块不重复计入；无进展且状态仍为计算中时方可续算。评估绑定原识别与复核的 canonical SHA256，补录回波（data_version 变化）、签发新的正式复核识别或航段长度变化都会使旧评估过期（stale），旧评估不能续算或封存，需按新版本重新提交。冻结时逐航段要求评估状态 done、块数与航段一致、且未过期，分块评估明细连同原识别一同进入快照。
+
 ## 代码与事务
 
 | 路径 | 职责 |
 |---|---|
-| backend/src/models.py、schemas.py | Cruise/NavigationClosure、Transect/Echo、SchoolAnalysis/Review、Net/Calibration/BioSample、MissingInterval/Resurvey、SurveyRelease关系模型与输入契约 |
+| backend/src/models.py、schemas.py | Cruise/NavigationClosure、Transect/Echo、SchoolAnalysis/Review、BlockEvaluation/Log、Net/Calibration/BioSample、MissingInterval/Resurvey、SurveyRelease关系模型与输入契约 |
 | navigation_service.py | 航窗、潮汐冲突、同船占用与开返航 |
 | transect_service.py、school_service.py、algorithm.py、worker.py | 航段长度、探头范围、版本化回波、实际聚类和噪点复核 |
+| evaluation_service.py、algorithm.py（分块函数）、worker.py | 百米留一分块评估：逐块留出重算、共同回波追踪、断点续算与过期判定 |
 | biology_service.py、resurvey_service.py、release_service.py | 网具、生物样、补测地理接续与JSON冻结 |
 | common.py、auth.py、middlewares.py | 根锁、三角色JWT、动作审计、请求追踪和突发限流 |
 | frontend/src/pages | 六个原生ES modules业务页 |

@@ -19,7 +19,10 @@ def record(db,id,points,user,source='manual'):
         f=p['along_m']/t.length_m;expected_lon=t.start_lon+(t.end_lon-t.start_lon)*f;expected_lat=t.start_lat+(t.end_lat-t.start_lat)*f
         reject(length(expected_lon,expected_lat,p['lon'],p['lat'])>100,'回波坐标偏离航段超过100米')
         db.add(Echo(transect_id=id,**p,source=source))
-    t.data_version+=1;t.status='acquired';return finish(db,user,'记录探头回波',t)
+    t.data_version+=1;t.status='acquired'
+    from .evaluation_service import stale_for_transect
+    stale_for_transect(db,id)
+    return finish(db,user,'记录探头回波',t)
 def synthetic_points(t):
     rng=np.random.default_rng(37+t.id);points=[]
     for center,depth,strength in [(.18,7,-46),(.51,14,-39),(.83,21,-52)]:

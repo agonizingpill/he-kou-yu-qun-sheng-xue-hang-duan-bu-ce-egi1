@@ -14,3 +14,9 @@ class AnalysisState(StrEnum):
     done='done'
     reviewed='reviewed'
     failed='failed'
+class EvaluationState(StrEnum):
+    queued='queued'
+    running='running'
+    done='done'
+    failed='failed'
+    stale='stale'

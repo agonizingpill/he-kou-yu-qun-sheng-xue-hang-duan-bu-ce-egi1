@@ -22,4 +22,6 @@ def review(db,id,data,user):
     initial=get(db,SchoolAnalysis,id);c,t=transect_lock(db,initial.transect_id);row=get(db,SchoolAnalysis,id,True)
     reject(row.status!='done' or row.data_version!=t.data_version,'仅最新回波版本的已完成识别可复核')
     reject(row.metrics.get('noise_count',0)>0 and len(data.noise_note.strip())<8,'存在噪点，请补充至少8字现场解释')
+    from .evaluation_service import stale_except
+    stale_except(db,t.id,row.id)
     row.status='reviewed';t.status='reviewed';review=SchoolReview(analysis_id=row.id,**data.model_dump());db.add(review);db.flush();return finish(db,user,'群落与噪点复核',review)
